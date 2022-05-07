@@ -1,6 +1,7 @@
 package fit.wenchao.databasedatamock;
 
 
+import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import fit.wenchao.commonComponentSpringBootStarter.ApplicationContextHolder;
@@ -60,8 +61,9 @@ public class DatabaseMocker {
         List<Type> genericSuperInterfaceParamTypes = getGenericSuperInterfaceParamTypes(daoClass, IService.class);
         Class<T> poClass = (Class<T>) genericSuperInterfaceParamTypes.get(0);
         List<T> goodsPubApplicationPOS = mockAnnotationProcessor.produceRow(poClass);
+        System.out.println(JSONObject.toJSONString(goodsPubApplicationPOS));
         IService<T> dao = ApplicationContextHolder.getApplicationContext().getBean(daoClass);
-        mockAnnotationProcessor.insertRows(dao, goodsPubApplicationPOS);
+        //mockAnnotationProcessor.insertRows(dao, goodsPubApplicationPOS);
     }
 
 }
