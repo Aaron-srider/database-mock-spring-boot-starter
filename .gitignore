@@ -32,11 +32,17 @@ build/
 ### VS Code ###
 .vscode/
 
+#编译好的文件不要
 target/
 
 #mapper.xml不要
 source/main/resources/mapper/
+
 #dao类不要
 testPo
 
+#springboot 启动类不要
 DatabaseDataMockApplication.java
+
+#springboot 配置类不要
+*.yml
