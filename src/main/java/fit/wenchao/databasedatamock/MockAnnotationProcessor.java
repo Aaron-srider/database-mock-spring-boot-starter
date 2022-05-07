@@ -1,18 +1,29 @@
 package fit.wenchao.databasedatamock;
 
 import com.alibaba.fastjson.JSONObject;
-import com.baomidou.mybatisplus.extension.service.IService;
-import fit.wenchao.databasedatamock.annotation.*;
-import fit.wenchao.databasedatamock.constant.AppendEnum;
-import fit.wenchao.databasedatamock.constant.MockModeEnum;
+import fit.wenchao.databasedatamock.annotation.MockField;
+import fit.wenchao.databasedatamock.annotation.MockRow;
+import fit.wenchao.databasedatamock.customMode.WithMockMode;
+import fit.wenchao.databasedatamock.mockMode.BaseMockMode;
+import fit.wenchao.databasedatamock.mockMode.FixedMockMode;
+import fit.wenchao.databasedatamock.mockMode.MockMode;
+import fit.wenchao.databasedatamock.mockMode.RangeMockMode;
 import fit.wenchao.databasedatamock.testPo.dao.po.GoodsPubApplicationPO;
+import fit.wenchao.utils.basic.BasicUtils;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
-import static fit.wenchao.databasedatamock.NanoIdUtils.randomNanoId;
+import static fit.wenchao.utils.basic.BasicUtils.arr;
+import static fit.wenchao.utils.string.StrUtils.ft;
+import static java.util.Arrays.asList;
 
 public class MockAnnotationProcessor {
+
+    static List<MockMode> mockModeList = new ArrayList<>();
 
     public static void main(String[] args) throws InstantiationException, IllegalAccessException {
         List<GoodsPubApplicationPO> goodsPubApplicationPOS = new MockAnnotationProcessor().produceRow(GoodsPubApplicationPO.class);
@@ -21,9 +32,6 @@ public class MockAnnotationProcessor {
         System.out.println(s);
     }
 
-    public <T> void insertRows(IService<T> dao, List<T> mockRows) {
-        dao.saveBatch(mockRows);
-    }
 
     private <T> MockRow checkMockRowAnnoExistsAndField(Class<T> tClass) {
         MockRow mockRowAnno = tClass.getAnnotation(MockRow.class);
@@ -38,99 +46,17 @@ public class MockAnnotationProcessor {
         return mockRowAnno;
     }
 
-    private <T> T mockOneRow(Class<T> tClass, Map<Field, BaseInfo> baseMap) throws InstantiationException, IllegalAccessException {
+    private <T> T mockOneRow(Class<T> tClass) throws InstantiationException, IllegalAccessException {
         T newRow = tClass.newInstance();
         Field[] declaredFields = tClass.getDeclaredFields();
         //mock each field
-        Arrays.stream(declaredFields).forEach((item) -> {
-            scanAndMockEachField(item, baseMap, newRow);
+        Arrays.stream(declaredFields).forEach((targetField) -> {
+            scanAndMockEachField(targetField, newRow);
         });
         return newRow;
     }
 
-
-    private void processBaseMode(Class fieldType, Field targetField,
-                                 Map<Field, BaseInfo> baseMap,
-                                 Object targetObj) {
-        MockString mockStringAnno = null;
-        if (!fieldType.equals(String.class) || (mockStringAnno = targetField.getAnnotation(MockString.class)) == null) {
-            throw new IllegalArgumentException("MockField mode 'BASE'," +
-                    " only support String.class and should be used along " +
-                    "with MockString");
-        }
-
-
-
-        String base;
-        AppendEnum appendStrategy = AppendEnum.NONE;
-        int appendLen;
-        if ((baseMap.get(targetField) == null)) {
-            base = mockStringAnno.base();
-            appendStrategy = mockStringAnno.append();
-            appendLen = mockStringAnno.appendLen();
-
-            BaseInfo baseInfo = new BaseInfo(base, appendStrategy, appendLen);
-            baseMap.put(targetField, baseInfo);
-        }
-
-        BaseInfo baseInfo = baseMap.get(targetField);
-        base = baseInfo.getBase();
-        appendLen = baseInfo.getAppendLen();
-        appendStrategy = baseInfo.getAppendStrategy();
-        if (appendStrategy.equals(AppendEnum.NANOID)) {
-            setFieldValue(targetField,targetObj, base + randomNanoId(appendLen) );
-        } else {
-            throw new IllegalArgumentException("Append only support AppendEnum.NANOID" +
-                    " for now");
-        }
-    }
-
-    private void processFixedMode(Class fieldType,
-                                  Field targetField,
-                                  Object targetObj) {
-        if (fieldType.equals(Integer.class)) {
-            MockInt annotation2 = targetField.getAnnotation(MockInt.class);
-            if (annotation2 == null) {
-                throw new IllegalArgumentException("Integer " +
-                        "field should be annotated with MockInt");
-            }
-
-            int value = annotation2.value();
-            setFieldValue(targetField,targetObj, value );
-        } else if (fieldType.equals(Boolean.class)) {
-            MockBoolean annotation2 = targetField.getAnnotation(MockBoolean.class);
-            if (annotation2 == null) {
-                throw new IllegalArgumentException("Boolean " +
-                        "field should be annotated with MockBoolean");
-            }
-            boolean value = annotation2.value();
-            setFieldValue(targetField,targetObj, value );
-
-        } else {
-            throw new IllegalArgumentException("Fixed Mode only" +
-                    " support Integer and Boolean field");
-        }
-    }
-
-    private int mockRangeInt(MockInt mockIntAnno){
-        int i1 = mockIntAnno.randomMin();
-        int i2 = mockIntAnno.randomMax();
-        if (i1 > i2) {
-            throw new IllegalArgumentException("randomMax should" +
-                    " be bigger than randomMin");
-        }
-        int newRandom = (new Random().nextInt(i2)) + i1;
-        return newRandom;
-    }
-    private boolean mockRangeBoolean(MockBoolean mockBoolean){
-        int i1 = new Random().nextInt(2);
-        boolean newBoolean = (i1 != 0);
-
-        return newBoolean;
-    }
-
-
-    private static void setFieldValue(Field targetField, Object obj, Object value){
+    private static void setFieldValue(Field targetField, Object obj, Object value) {
         try {
             targetField.set(obj, value);
         } catch (IllegalAccessException e) {
@@ -139,68 +65,86 @@ public class MockAnnotationProcessor {
     }
 
 
-
-    private void processRangeModeField(
-                                       Field targetField,
-                                       Object targetObj) {
-        Class fieldType = targetField.getType();
-        if (fieldType.equals(Integer.class)) {
-            MockInt mockIntAnno = targetField.getAnnotation(MockInt.class);
-            if (mockIntAnno == null) {
-                throw new IllegalArgumentException("Integer field with " +
-                        "Range mode should be annotated with MockInt");
-            }
-            int newRandom = mockRangeInt(mockIntAnno);
-            setFieldValue(targetField, targetObj, newRandom );
-        } else if (fieldType.equals(Boolean.class)) {
-            MockBoolean mockBoolean = targetField.getAnnotation(MockBoolean.class);
-            if (mockBoolean == null) {
-                throw new IllegalArgumentException("Boolean field with " +
-                        "Range mode should be annotated with MockBoolean");
-            }
-            boolean newBoolean = mockRangeBoolean(mockBoolean);
-            setFieldValue(targetField,targetObj, newBoolean );
-        } else {
-            throw new IllegalArgumentException("Range Mode only" +
-                    " support Integer and Boolean field");
-        }
-    }
-
-
-    private <T> void scanAndMockEachField(Field item,
-                                          Map<Field, BaseInfo> baseMap,
+    private <T> void scanAndMockEachField(Field targetField,
                                           T newRow) {
-        item.setAccessible(true);
-        MockField annotation1 = item.getAnnotation(MockField.class);
-        if (annotation1 != null) {
-            MockModeEnum mode = annotation1.mode();
-            Class<?> fieldType = item.getType();
+        List<MockMode> mockModeList = asList(
+                new BaseMockMode(),
+                new RangeMockMode(),
+                new FixedMockMode());
 
-            //base mode
-            if (mode.equals(MockModeEnum.BASE)) {
-                processBaseMode(fieldType, item, baseMap, newRow);
-            }
-
-            //fixed mode
-            if (mode.equals(MockModeEnum.FIXED)) {
-                processFixedMode(fieldType, item, newRow);
-            }
-
-            //range mode
-            if (mode.equals(MockModeEnum.RANGE)) {
-                processRangeModeField(item, newRow);
-            }
+        targetField.setAccessible(true);
+        MockField mockField = targetField.getAnnotation(MockField.class);
+        if (mockField != null) {
+            mockModeList.stream().forEach((mockMode -> {
+                if (mockMode.supports(mockField)) {
+                    Object o = mockMode.mockValue(targetField);
+                    setFieldValue(targetField, newRow, o);
+                }
+            }));
         }
+
+        //List<CustomMockFieldAnnotationProvider> list = asList(
+        //        new FixedIntValueProvider()
+        //);
+
+        Annotation[] annotations = targetField.getAnnotations();
+        try {
+            BasicUtils.hloop(arr(annotations), (idx, annotation, state) -> {
+                WithMockMode annotation1 = annotation.annotationType().getAnnotation(WithMockMode.class);
+                if (annotation1 != null) {
+                    Class<? extends MockMode> clazz = annotation1.clazz();
+                    MockMode mockMode = clazz.newInstance();
+                    if (!mockMode.supports(annotation)) {
+                        throw new RuntimeException(ft("class {} do not support anno" +
+                                        "tation {}", mockMode.getClass(),
+                                annotation.annotationType()));
+                    }
+                    Object o = mockMode.mockValue(targetField);
+                    setFieldValue(targetField, newRow, o);
+                }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e.getMessage());
+        }
+
+        //Arrays.stream(annotations).forEach((annotation -> {
+        //    WithMockMode annotation1 = annotation.annotationType().getAnnotation(WithMockMode.class);
+        //    if(annotation1!=null){
+        //        Class<? extends MockMode> clazz = annotation1.clazz();
+        //        try {
+        //            MockMode mockMode = clazz.newInstance();
+        //
+        //        } catch (InstantiationException | IllegalAccessException e) {
+        //            e.printStackTrace();
+        //        }
+        //
+        //    }
+        //}));
+
+        //list.forEach((customMockFieldAnnotationProvider) -> {
+        //    Class<? extends Annotation> customAnnotationClass =
+        //            customMockFieldAnnotationProvider.getAnnotation();
+        //    Annotation customAnnotation = targetField.getAnnotation(customAnnotationClass);
+        //    targetField.getAnnotations();
+        //    if (targetField.getAnnotation(customAnnotationClass) != null) {
+        //        mockModeList.forEach((mockMode -> {
+        //            if (mockMode.supports(customAnnotation)) {
+        //                Object o = mockMode.mockValue(targetField);
+        //                setFieldValue(targetField, newRow, o);
+        //            }
+        //        }));
+        //    }
+        //});
     }
 
     public <T> List<T> produceRow(Class<T> tClass) throws InstantiationException, IllegalAccessException {
         List<T> list = new ArrayList<>();
         MockRow mockRowAnno = checkMockRowAnnoExistsAndField(tClass);
         int num = mockRowAnno.num();
-        Map<Field, BaseInfo> baseMap = new HashMap<>();
         //mock num obj
         for (int i = 0; i < num; i++) {
-            T newRow = mockOneRow(tClass, baseMap);
+            T newRow = mockOneRow(tClass);
             list.add(newRow);
         }
         return list;
