@@ -8,5 +8,5 @@ public @interface MockRow {
     /**
      * required
      */
-    int num();
+    int value();
 }

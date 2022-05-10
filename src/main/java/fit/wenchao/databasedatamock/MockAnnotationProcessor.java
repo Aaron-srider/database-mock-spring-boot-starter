@@ -1,6 +1,6 @@
 package fit.wenchao.databasedatamock;
 
-import com.alibaba.fastjson.JSONObject;
+import com.baomidou.mybatisplus.extension.service.IService;
 import fit.wenchao.databasedatamock.annotation.MockField;
 import fit.wenchao.databasedatamock.annotation.MockRow;
 import fit.wenchao.databasedatamock.customMode.WithMockMode;
@@ -8,7 +8,6 @@ import fit.wenchao.databasedatamock.mockMode.BaseMockMode;
 import fit.wenchao.databasedatamock.mockMode.FixedMockMode;
 import fit.wenchao.databasedatamock.mockMode.MockMode;
 import fit.wenchao.databasedatamock.mockMode.RangeMockMode;
-import fit.wenchao.databasedatamock.testPo.dao.po.GoodsPubApplicationPO;
 import fit.wenchao.utils.basic.BasicUtils;
 
 import java.lang.annotation.Annotation;
@@ -17,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static fit.wenchao.utils.basic.BasicUtils.arr;
 import static fit.wenchao.utils.string.StrUtils.ft;
 import static java.util.Arrays.asList;
 
@@ -25,12 +23,7 @@ public class MockAnnotationProcessor {
 
     static List<MockMode> mockModeList = new ArrayList<>();
 
-    public static void main(String[] args) throws InstantiationException, IllegalAccessException {
-        List<GoodsPubApplicationPO> goodsPubApplicationPOS = new MockAnnotationProcessor().produceRow(GoodsPubApplicationPO.class);
 
-        String s = JSONObject.toJSONString(goodsPubApplicationPOS);
-        System.out.println(s);
-    }
 
 
     private <T> MockRow checkMockRowAnnoExistsAndField(Class<T> tClass) {
@@ -39,7 +32,7 @@ public class MockAnnotationProcessor {
             throw new IllegalArgumentException("you should indicate mock row" +
                     " count with annotation MockRow");
         }
-        int num = mockRowAnno.num();
+        int num = mockRowAnno.value();
         if (num <= 0) {
             throw new IllegalArgumentException("Mock row must > 0");
         }
@@ -89,7 +82,7 @@ public class MockAnnotationProcessor {
 
         Annotation[] annotations = targetField.getAnnotations();
         try {
-            BasicUtils.hloop(arr(annotations), (idx, annotation, state) -> {
+            BasicUtils.hloop(BasicUtils.arr(annotations), (idx, annotation, state) -> {
                 WithMockMode annotation1 = annotation.annotationType().getAnnotation(WithMockMode.class);
                 if (annotation1 != null) {
                     Class<? extends MockMode> clazz = annotation1.clazz();
@@ -141,7 +134,7 @@ public class MockAnnotationProcessor {
     public <T> List<T> produceRow(Class<T> tClass) throws InstantiationException, IllegalAccessException {
         List<T> list = new ArrayList<>();
         MockRow mockRowAnno = checkMockRowAnnoExistsAndField(tClass);
-        int num = mockRowAnno.num();
+        int num = mockRowAnno.value();
         //mock num obj
         for (int i = 0; i < num; i++) {
             T newRow = mockOneRow(tClass);
@@ -150,4 +143,7 @@ public class MockAnnotationProcessor {
         return list;
     }
 
+    public <T> void insertRows(IService<T> dao, List<T> mockRows) {
+        dao.saveBatch(mockRows);
+    }
 }

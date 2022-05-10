@@ -13,5 +13,4 @@ public @interface MockField {
 
     MockModeEnum mode();
 
-
 }

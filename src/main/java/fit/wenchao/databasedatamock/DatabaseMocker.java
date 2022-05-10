@@ -3,7 +3,6 @@ package fit.wenchao.databasedatamock;
 
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.extension.service.IService;
-
 import fit.wenchao.commonComponentSpringBootStarter.ApplicationContextHolder;
 import org.springframework.stereotype.Component;
 
@@ -13,7 +12,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Arrays.asList;
 
@@ -60,10 +58,10 @@ public class DatabaseMocker {
         MockAnnotationProcessor mockAnnotationProcessor = new MockAnnotationProcessor();
         List<Type> genericSuperInterfaceParamTypes = getGenericSuperInterfaceParamTypes(daoClass, IService.class);
         Class<T> poClass = (Class<T>) genericSuperInterfaceParamTypes.get(0);
-        List<T> goodsPubApplicationPOS = mockAnnotationProcessor.produceRow(poClass);
-        System.out.println(JSONObject.toJSONString(goodsPubApplicationPOS));
+        List<T> resultRows = mockAnnotationProcessor.produceRow(poClass);
+        System.out.println(JSONObject.toJSONString(resultRows));
         IService<T> dao = ApplicationContextHolder.getApplicationContext().getBean(daoClass);
-        //mockAnnotationProcessor.insertRows(dao, goodsPubApplicationPOS);
+        mockAnnotationProcessor.insertRows(dao, resultRows);
     }
 
 }

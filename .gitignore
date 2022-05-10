@@ -45,4 +45,4 @@ testPo
 DatabaseDataMockApplication.java
 
 #springboot 配置类不要
-*.yml
+resources/
