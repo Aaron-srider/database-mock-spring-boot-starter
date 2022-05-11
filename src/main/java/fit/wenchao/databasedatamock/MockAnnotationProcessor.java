@@ -4,10 +4,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import fit.wenchao.databasedatamock.annotation.MockField;
 import fit.wenchao.databasedatamock.annotation.MockRow;
 import fit.wenchao.databasedatamock.customMode.WithMockMode;
-import fit.wenchao.databasedatamock.mockMode.BaseMockMode;
-import fit.wenchao.databasedatamock.mockMode.FixedMockMode;
-import fit.wenchao.databasedatamock.mockMode.MockMode;
-import fit.wenchao.databasedatamock.mockMode.RangeMockMode;
+import fit.wenchao.databasedatamock.mockMode.*;
 import fit.wenchao.utils.basic.BasicUtils;
 
 import java.lang.annotation.Annotation;
@@ -23,9 +20,6 @@ public class MockAnnotationProcessor {
 
     static List<MockMode> mockModeList = new ArrayList<>();
 
-
-
-
     private <T> MockRow checkMockRowAnnoExistsAndField(Class<T> tClass) {
         MockRow mockRowAnno = tClass.getAnnotation(MockRow.class);
         if (mockRowAnno == null) {
@@ -39,12 +33,12 @@ public class MockAnnotationProcessor {
         return mockRowAnno;
     }
 
-    private <T> T mockOneRow(Class<T> tClass) throws InstantiationException, IllegalAccessException {
+    private <T> T mockOneRow(Class<T> tClass, int num) throws InstantiationException, IllegalAccessException {
         T newRow = tClass.newInstance();
         Field[] declaredFields = tClass.getDeclaredFields();
         //mock each field
         Arrays.stream(declaredFields).forEach((targetField) -> {
-            scanAndMockEachField(targetField, newRow);
+            scanAndMockEachField(targetField, newRow, num);
         });
         return newRow;
     }
@@ -59,11 +53,12 @@ public class MockAnnotationProcessor {
 
 
     private <T> void scanAndMockEachField(Field targetField,
-                                          T newRow) {
+                                          T newRow, int num) {
         List<MockMode> mockModeList = asList(
                 new BaseMockMode(),
                 new RangeMockMode(),
-                new FixedMockMode());
+                new FixedMockMode(),
+                new StepMockMode());
 
         targetField.setAccessible(true);
         MockField mockField = targetField.getAnnotation(MockField.class);
@@ -137,7 +132,7 @@ public class MockAnnotationProcessor {
         int num = mockRowAnno.value();
         //mock num obj
         for (int i = 0; i < num; i++) {
-            T newRow = mockOneRow(tClass);
+            T newRow = mockOneRow(tClass, num);
             list.add(newRow);
         }
         return list;
