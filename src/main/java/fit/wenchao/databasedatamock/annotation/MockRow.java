@@ -9,4 +9,6 @@ public @interface MockRow {
      * required
      */
     int value();
+
+    boolean delBeforeMock() default false;
 }
