@@ -1,7 +1,7 @@
 package fit.wenchao.databasedatamock.annotation;
 
 import fit.wenchao.databasedatamock.constant.AppendEnum;
-import fit.wenchao.databasedatamock.mockMode.StringCharsetEnum;
+import fit.wenchao.databasedatamock.constant.StringCharsetEnum;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -45,6 +45,16 @@ public @interface MockString {
      * @return charset containing the set of characters to use
      */
     StringCharsetEnum charset() default StringCharsetEnum.ALPHADIGITAL;
+
+    /**
+     * used for range mode, pick word from set provided, if not specified, empty
+     * array will be return. If wordSet is empty, null will be used.
+     * @return a String array containing candidate words.
+     */
+    String[] wordSet() default {};
+
+
+    MockStringTypeEnum type() default MockStringTypeEnum.RANDOM_EACH_CHAR;
 
     /**
      * used for range mode, if not specified, result has no prefix

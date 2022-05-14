@@ -2,6 +2,7 @@ package fit.wenchao.databasedatamock.mockMode;
 
 import fit.wenchao.databasedatamock.annotation.*;
 import fit.wenchao.databasedatamock.constant.MockModeEnum;
+import fit.wenchao.databasedatamock.constant.StringCharsetEnum;
 import fit.wenchao.utils.random.RandomUtils;
 
 import java.lang.annotation.Annotation;
@@ -124,30 +125,42 @@ public class RangeMockMode implements MockMode {
                         "Range mode should be annotated with MockString");
             }
 
-            int minlen = mockBigDecimal.minLen();
-            int maxlen = mockBigDecimal.maxLen();
-            if (minlen > maxlen) {
-                throw new IllegalArgumentException("minLen must not be greater " +
-                        "than maxLen");
-            }
+            MockStringTypeEnum type = mockBigDecimal.type();
+            if(type.equals(MockStringTypeEnum.RANDOM_EACH_CHAR)) {
+                int minlen = mockBigDecimal.minLen();
+                int maxlen = mockBigDecimal.maxLen();
+                if (minlen > maxlen) {
+                    throw new IllegalArgumentException("minLen must not be greater " +
+                            "than maxLen");
+                }
 
-            String prefix = mockBigDecimal.prefix();
-            String suffix = mockBigDecimal.suffix();
-            StringCharsetEnum stringCharsetEnum = mockBigDecimal.charset();
-            if (stringCharsetEnum.equals(StringCharsetEnum.DIGITAL)) {
-                String s = prefix +  RandomUtils.randomStringFromDigitalFor(minlen, maxlen)
-                        +suffix;
-                return s;
-            } else if (stringCharsetEnum.equals(StringCharsetEnum.ALPHADIGITAL)) {
-                return prefix + RandomUtils.randomStringFromAlphaDigital(minlen, maxlen)+suffix;
-            } else if (stringCharsetEnum.equals(StringCharsetEnum.ALPHABET)) {
-                return prefix + RandomUtils.randomStringFromAlphabetFor(minlen, maxlen)+suffix;
-            } else if (stringCharsetEnum.equals(StringCharsetEnum.VISIBLEASCII)) {
-                String charset = "!#$%&()*+,-.0123456789:;<=>?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_abcdefghijklmnopqrstuvwxyz{|}~";
-                return prefix + RandomUtils.randomFromCharset(minlen, maxlen, charset)+suffix;
-            } else {
-                return prefix + RandomUtils.randomStringFromAlphaDigital(minlen, maxlen)+suffix;
+                String prefix = mockBigDecimal.prefix();
+                String suffix = mockBigDecimal.suffix();
+                StringCharsetEnum stringCharsetEnum = mockBigDecimal.charset();
+                if (stringCharsetEnum.equals(StringCharsetEnum.DIGITAL)) {
+                    String s = prefix +  RandomUtils.randomStringFromDigitalFor(minlen, maxlen)
+                            +suffix;
+                    return s;
+                } else if (stringCharsetEnum.equals(StringCharsetEnum.ALPHADIGITAL)) {
+                    return prefix + RandomUtils.randomStringFromAlphaDigital(minlen, maxlen)+suffix;
+                } else if (stringCharsetEnum.equals(StringCharsetEnum.ALPHABET)) {
+                    return prefix + RandomUtils.randomStringFromAlphabetFor(minlen, maxlen)+suffix;
+                } else if (stringCharsetEnum.equals(StringCharsetEnum.VISIBLEASCII)) {
+                    String charset = "!#$%&()*+,-.0123456789:;<=>?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_abcdefghijklmnopqrstuvwxyz{|}~";
+                    return prefix + RandomUtils.randomFromCharset(minlen, maxlen, charset)+suffix;
+                } else {
+                    return prefix + RandomUtils.randomStringFromAlphaDigital(minlen, maxlen)+suffix;
+                }
+            } else if(type.equals(MockStringTypeEnum.CANDIDATES)) {
+                String[] strings = mockBigDecimal.wordSet();
+                if(strings.length == 0){
+                    throw new IllegalArgumentException("Mock String with CANDIDATES type" +
+                            " must provide candidate strings");
+                }
+                return strings[RandomUtils.randomIntRange(0, strings.length - 1)];
             }
+            return null;
+
         } else {
             throw new IllegalArgumentException("Range Mode only" +
                     " support Integer and Boolean field");
