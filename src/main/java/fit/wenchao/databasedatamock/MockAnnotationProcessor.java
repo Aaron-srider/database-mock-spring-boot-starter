@@ -1,6 +1,5 @@
 package fit.wenchao.databasedatamock;
 
-import com.baomidou.mybatisplus.extension.service.IService;
 import fit.wenchao.databasedatamock.annotation.MockField;
 import fit.wenchao.databasedatamock.annotation.MockRow;
 import fit.wenchao.databasedatamock.customMode.WithMockMode;
@@ -71,10 +70,6 @@ public class MockAnnotationProcessor {
             }));
         }
 
-        //List<CustomMockFieldAnnotationProvider> list = asList(
-        //        new FixedIntValueProvider()
-        //);
-
         Annotation[] annotations = targetField.getAnnotations();
         try {
             BasicUtils.hloop(BasicUtils.arr(annotations), (idx, annotation, state) -> {
@@ -96,34 +91,6 @@ public class MockAnnotationProcessor {
             throw new RuntimeException(e.getMessage());
         }
 
-        //Arrays.stream(annotations).forEach((annotation -> {
-        //    WithMockMode annotation1 = annotation.annotationType().getAnnotation(WithMockMode.class);
-        //    if(annotation1!=null){
-        //        Class<? extends MockMode> clazz = annotation1.clazz();
-        //        try {
-        //            MockMode mockMode = clazz.newInstance();
-        //
-        //        } catch (InstantiationException | IllegalAccessException e) {
-        //            e.printStackTrace();
-        //        }
-        //
-        //    }
-        //}));
-
-        //list.forEach((customMockFieldAnnotationProvider) -> {
-        //    Class<? extends Annotation> customAnnotationClass =
-        //            customMockFieldAnnotationProvider.getAnnotation();
-        //    Annotation customAnnotation = targetField.getAnnotation(customAnnotationClass);
-        //    targetField.getAnnotations();
-        //    if (targetField.getAnnotation(customAnnotationClass) != null) {
-        //        mockModeList.forEach((mockMode -> {
-        //            if (mockMode.supports(customAnnotation)) {
-        //                Object o = mockMode.mockValue(targetField);
-        //                setFieldValue(targetField, newRow, o);
-        //            }
-        //        }));
-        //    }
-        //});
     }
 
     public <T> List<T> produceRow(Class<T> tClass) throws InstantiationException, IllegalAccessException {
@@ -136,9 +103,5 @@ public class MockAnnotationProcessor {
             list.add(newRow);
         }
         return list;
-    }
-
-    public <T> void insertRows(IService<T> dao, List<T> mockRows) {
-        dao.saveBatch(mockRows);
     }
 }

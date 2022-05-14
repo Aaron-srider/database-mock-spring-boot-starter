@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import fit.wenchao.commonComponentSpringBootStarter.ApplicationContextHolder;
 import fit.wenchao.databasedatamock.annotation.MockRow;
 import fit.wenchao.utils.basic.BasicUtils;
+import fit.wenchao.utils.properties.PropertiesUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.dbutils.BasicRowProcessor;
 import org.apache.commons.dbutils.QueryRunner;
@@ -15,7 +16,6 @@ import org.apache.commons.dbutils.handlers.AbstractListHandler;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
-import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -26,6 +26,7 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -74,18 +75,6 @@ public class DatabaseMocker {
         return list;
     }
 
-    //public <T> void mock(Class<? extends IService<T>> daoClass) throws Exception {
-    //
-    //    List<Type> genericSuperInterfaceParamTypes = getGenericSuperInterfaceParamTypes(daoClass, IService.class);
-    //    Class<T> poClass = (Class<T>) genericSuperInterfaceParamTypes.get(0);
-    //
-    //    MockAnnotationProcessor mockAnnotationProcessor = new MockAnnotationProcessor();
-    //    List<T> resultRows = mockAnnotationProcessor.produceRow(poClass);
-    //    System.out.println(JSONObject.toJSONString(resultRows));
-    //
-    //    insertRows(poClass, resultRows);
-    //}
-
     public <T> void mock(Class<T> poClass) throws Exception {
         MockAnnotationProcessor mockAnnotationProcessor = new MockAnnotationProcessor();
         List<T> resultRows = mockAnnotationProcessor.produceRow(poClass);
@@ -94,15 +83,49 @@ public class DatabaseMocker {
         insertRows(poClass, resultRows);
     }
 
-    private <T> void insertRows(Class<T> poClass, List<T> list) throws Exception {
-        Properties properties = new Properties();
+    static class DataSourceSingleton{
+        DataSource dataSource;
+        private static final DataSourceSingleton dataSourceSingleton;
+        static {
+            Properties properties = PropertiesUtils.getProperties("druid.properties");
+            DataSource dataSource = null;
+            try {
+                dataSource = DruidDataSourceFactory.createDataSource(properties);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            dataSourceSingleton =  new DataSourceSingleton(dataSource);
+        }
 
-        InputStream is = ClassLoader.getSystemClassLoader().getResourceAsStream("druid.properties");
-        properties.load(is);
+        private DataSourceSingleton(DataSource dataSource) {
+            this.dataSource = dataSource;
+        }
 
+        public static Connection getConnection() throws SQLException {
+            return dataSourceSingleton.dataSource.getConnection();
+        }
+    }
+
+    private void autoRollbackTransaction( Consumer<Connection> biconsumer ) throws SQLException {
+        Connection connection = DataSourceSingleton.getConnection();
+        connection.setAutoCommit(false);
+        try {
+            biconsumer.accept(connection);
+            connection.commit();
+        } catch (Exception e) {
+            log.error("exception: " + e.getMessage() + "\n now rollback all changes.");
+            if (connection != null) {
+                connection.rollback();
+                connection.close();
+            }
+        }
+    }
+
+    private <T> void insertRows(Class<T> poClass, List<T> rows) throws Exception {
+        Properties properties = PropertiesUtils.getProperties("druid.properties");
         DataSource dataSource = DruidDataSourceFactory.createDataSource(properties);
-        Connection connection = null;
 
+        Connection connection = null;
         try {
             connection = dataSource.getConnection();
 
@@ -114,30 +137,18 @@ public class DatabaseMocker {
                 deleteAll(connection, tableName);
             }
 
-            //int i  = 1 / 0;
             Map<String, Object> map = getInsertSql(poClass, tableName);
-
 
             String sql = (String) map.get("sql");
 
             Boolean[] dontInsert = (Boolean[]) map.get("dontInsert");
 
-            Object[][] objects = list.stream()
-                    .map((row) -> {
-                        try {
-                            return getObjectValueArray(row, dontInsert);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                        return null;
-                    })
+            Object[][] objects = rows.stream()
+                    .map(row -> getObjectValueArray(row, dontInsert))
                     .collect(Collectors.toList())
                     .toArray(new Object[0][0]);
 
-
             QueryRunner queryRunner = new QueryRunner();
-
-
             queryRunner.insertBatch(connection, sql, new MapListHandler(), objects);
 
             log.info("mock completed, now commit changes.");
@@ -177,9 +188,7 @@ public class DatabaseMocker {
         sql.append(") ");
         sql.append("values (");
 
-
         int dontInsertCount = (int) Arrays.stream(dontInsert).filter((item) -> item).count();
-
 
         for (int i = 0; i < declaredFields.length - dontInsertCount; i++) {
             sql.append("?,");
@@ -209,14 +218,18 @@ public class DatabaseMocker {
         System.out.println(matches);
     }
 
-    private Object[] getObjectValueArray(Object obj, Boolean[] dontInsert) throws Exception {
+    private Object[] getObjectValueArray(Object obj, Boolean[] dontInsert) {
         Field[] declaredFields = obj.getClass().getDeclaredFields();
         List<Object> list = new ArrayList<>();
-        BasicUtils.hloop(arr(declaredFields), (idx, field, state) -> {
-            if (!dontInsert[idx]) {
-                list.add(getFieldValue(field, obj));
-            }
-        });
+        try {
+            BasicUtils.hloop(arr(declaredFields), (idx, field, state) -> {
+                if (!dontInsert[idx]) {
+                    list.add(getFieldValue(field, obj));
+                }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         return list.toArray(new Object[0]);
     }
 
@@ -236,7 +249,7 @@ public class DatabaseMocker {
         if (annotation != null && annotation.value() != "") {
             return annotation.value();
         }
-        throw new IllegalArgumentException("Need to know the table name to truncate," +
+        throw new IllegalArgumentException("Need to know the table name," +
                 " use mybatis @TableName to specify tablename");
     }
 
